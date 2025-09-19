@@ -1,0 +1,52 @@
+{
+  "name": "@beltjs/start",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "The Svelte Meta-Framework",
+  "scripts": {
+    "build": "obuild",
+    "play": "pnpm build && belt dev docs",
+    "test": "vitest"
+  },
+  "bin": {
+    "belt": "dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./config": {
+      "types": "./dist/config.d.mts",
+      "default": "./dist/config.mjs"
+    }
+  },
+  "keywords": [
+    "svelte",
+    "belt",
+    "framework"
+  ],
+  "author": "Boe Reh",
+  "license": "MIT",
+  "packageManager": "pnpm@10.15.0",
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "c12": "^3.2.0",
+    "citty": "^0.1.6",
+    "defu": "^6.1.4",
+    "glob": "^11.0.3",
+    "obuild": "^0.2.1",
+    "rollup-plugin-svelte": "^7.2.3",
+    "rou3": "^0.7.3",
+    "tsdown": "^0.15.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@beltjs/start": "link:.",
+    "@sveltejs/vite-plugin-svelte": "^6.2.0",
+    "svelte": "^5.38.8",
+    "vinxi": "^0.5.8",
+    "vite": "^7.1.5"
+  }
+}
