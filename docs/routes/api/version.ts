@@ -1,7 +1,3 @@
-export function GET() {
-  return "get method";
-}
-
 export default function () {
-  return "all other methods";
+  return "0.0.1";
 }

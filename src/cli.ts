@@ -5,35 +5,25 @@ import {
   version,
 } from "../package.json" with { type: "json" };
 import { isAbsolute, resolve } from "path";
-import { createServer } from "vite";
+import { Connect, createServer, ViteDevServer } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import {
-  addRoute,
-  createRouter,
-  findRoute,
-  RouterContext,
-  findAllRoutes,
-} from "rou3";
-import { readFile } from "node:fs/promises";
+import { addRoute, createRouter, findRoute, RouterContext } from "rou3";
 import { glob } from "glob";
-import { Component } from "svelte";
 import { render } from "svelte/server";
-
-export const HTML_TEMPLATE = `<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <!--%belt.head%-->
-    </head>
-    <body>
-        <div style="display: contents"><!--%belt.body%--></div>
-    </body>
-</html>`;
+import { readFile } from "node:fs/promises";
+import {
+  HTML_BODY_ID,
+  HTML_HEAD_ID,
+  HTML_TEMPLATE,
+  HTTP_METHODS,
+} from "./constants";
 
 type AppConfig = {
   cwd: string;
-  router: RouterContext<{ file: string }>;
+  router: RouterContext<{
+    file: string;
+    action?: <T>(req: Connect.IncomingMessage) => T;
+  }>;
 };
 
 const dev_command = defineCommand({
@@ -57,9 +47,13 @@ const dev_command = defineCommand({
       router: createRouter(),
     };
 
-    await resolveRoutes(app);
+    // const config: Object = await import(resolve(app.cwd, "./belt.config.ts"));
 
     const vite = await createServer({
+      optimizeDeps: {
+        include: [`${app.cwd}/routes/**/*`],
+        extensions: ["svelte", "ts", "js"],
+      },
       publicDir: resolve(app.cwd, "public"),
       plugins: [
         svelte({
@@ -67,50 +61,25 @@ const dev_command = defineCommand({
         }),
         {
           name: "vite-plugin-belt",
-          configureServer(server) {
-            return () =>
-              server.middlewares.use(async (req, res, next) => {
-                if (!req.originalUrl) {
-                  return next();
-                }
-
-                const route = findRoute(
-                  app.router,
-                  req.method || "GET",
-                  req.originalUrl,
-                );
-
-                if (!route) return res.end("not-found");
-                const file_path = resolve(
-                  app.cwd,
-                  "app/routes",
-                  route.data.file,
-                );
-
-                const file = await server.ssrLoadModule(file_path);
-                const rendered = render(file.default);
-                let html = HTML_TEMPLATE.replace(
-                  "<!--%belt.body%-->",
-                  rendered.body,
-                ).replace("<!--%belt.head%-->", rendered.head);
-
-                res.end(html);
-              });
-          },
+          enforce: "pre",
         },
       ],
     });
+
+    await resolveRoutes(app, vite);
+
     await vite.listen();
     vite.printUrls();
   },
 });
 
-export async function resolveRoutes(app: AppConfig) {
-  const globs = await glob("**/*{.svelte,.ts}", {
+export async function resolveRoutes(app: AppConfig, vite: ViteDevServer) {
+  const globs = await glob("**/*.{svelte,ts}", {
     cwd: resolve(app.cwd, "./routes"),
   });
 
   for (const file of globs) {
+    const file_path = resolve(app.cwd, "routes", file);
     let path = file.replaceAll(/\[\.\.\.([\w]+)\]/g, "**:$1");
     path = path.replaceAll(/\[([\w]+)\]/g, ":$1");
     path = path.replaceAll(/(\/)?(index)?\.(svelte|ts|js)$/g, "");
@@ -119,14 +88,32 @@ export async function resolveRoutes(app: AppConfig) {
 
     if (file.endsWith(".svelte")) {
       addRoute(app.router, "GET", path, {
-        file: `${app.cwd}/routes/${file}`,
+        file: file_path,
+      });
+
+      continue;
+    }
+
+    const source: Record<string, () => any> = await import(file_path);
+
+    for (const [key, fn] of Object.entries(source)) {
+      if (key === "default") continue;
+
+      addRoute(app.router, key, path, {
+        file: file_path,
+        action: fn,
       });
     }
-    // } else if (file.endsWith(".ts") || file.endsWith(".js")) {
-    //   addRoute(app.router, "GET", path, {
-    //     file: `${app.cwd}/${file}`,
-    //   });
-    // }
+
+    if (!source.default) continue;
+    const source_keys = Object.keys(source);
+
+    for (const key of HTTP_METHODS.filter((x) => source_keys.includes(x))) {
+      addRoute(app.router, key, path, {
+        file: file_path,
+        action: source.default,
+      });
+    }
   }
 }
 

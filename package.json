@@ -1,25 +1,20 @@
 {
-  "name": "@beltjs/start",
+  "name": "vite-plugin-belt",
   "type": "module",
   "version": "0.0.1",
   "description": "The Svelte Meta-Framework",
   "scripts": {
+    "dev": "vite",
     "build": "obuild",
     "play": "pnpm build && belt dev docs",
     "test": "vitest"
   },
   "bin": {
-    "belt": "dist/cli.mjs"
+    "belt": "./src/cli.ts"
   },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
-    },
-    "./config": {
-      "types": "./dist/config.d.mts",
-      "default": "./dist/config.mjs"
-    }
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.js"
   },
   "keywords": [
     "svelte",
@@ -35,7 +30,9 @@
     "citty": "^0.1.6",
     "defu": "^6.1.4",
     "glob": "^11.0.3",
+    "nitro": "^0.0.0",
     "obuild": "^0.2.1",
+    "path-to-regexp": "^8.3.0",
     "rollup-plugin-svelte": "^7.2.3",
     "rou3": "^0.7.3",
     "tsdown": "^0.15.0",
@@ -43,10 +40,10 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@beltjs/start": "link:.",
     "@sveltejs/vite-plugin-svelte": "^6.2.0",
     "svelte": "^5.38.8",
     "vinxi": "^0.5.8",
-    "vite": "^7.1.5"
+    "vite": "^7.1.5",
+    "vite-plugin-belt": "link:."
   }
 }

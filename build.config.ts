@@ -10,9 +10,9 @@ export default defineBuildConfig({
       input: [
         "src/cli.ts",
         "src/index.ts",
-        "src/server.ts",
-        "src/client.ts",
-        "src/config.ts",
+        // "src/server.ts",
+        // "src/client.ts",
+        // "src/config.ts",
       ],
       minify: true,
       dts: true,
@@ -22,11 +22,4 @@ export default defineBuildConfig({
       },
     },
   ],
-  hooks: {
-    async end(ctx) {
-      const entry = await readFile("./src/entry.html", "utf8");
-
-      await writeFile("./dist/entry.html", entry);
-    },
-  },
 });

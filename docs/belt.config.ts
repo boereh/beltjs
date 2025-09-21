@@ -1,3 +1,5 @@
-import { createApp } from "@beltjs/start/config";
+import { defineConfig } from "@beltjs/start";
 
-export default createApp();
+export default defineConfig({
+  app_dir: "docs",
+});

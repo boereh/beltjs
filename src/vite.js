@@ -1,6 +1,7 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { glob } from "glob";
 import { resolve } from "node:path";
+import { addRoute, createRouter, findRoute } from "rou3";
 import { render } from "svelte/server";
 import {
   HTML_BODY_ID,
@@ -8,28 +9,18 @@ import {
   HTML_TEMPLATE,
   HTTP_METHODS,
 } from "./constants.ts";
-import type { Connect, Plugin } from "vite";
-import { match, type MatchFunction } from "path-to-regexp";
 
-export type AppConfig = {
-  cwd: string;
-  router: Set<Route>;
-};
-
-export type Config = {
-  app_dir?: string;
-  routes_mode?: "both" | "kit" | "fbr";
-};
-
-export const defineConfig = (cfg: Config) => cfg;
+/** @import { AppConfig } from "./types.ts"*/
 
 export async function belt() {
-  const app: AppConfig = {
+  /** @type {AppConfig}  */
+  const app = {
     cwd: "",
     router: new Set(),
   };
 
-  const belt_plugin: Plugin = {
+  /** @type {import('vite').Plugin} */
+  const belt_plugin = {
     name: "vite-plugin-belt",
     enforce: "pre",
     config(config) {},
@@ -49,31 +40,29 @@ export async function belt() {
       return () =>
         server.middlewares.use(async (req, res, next) => {
           if (!req.originalUrl) return next();
-          if (!req.method) return next();
-
-          let matched_route: Route | undefined = undefined;
 
           for (const route of app.router.values()) {
-            if (route.method !== req.method) continue;
-            const matched = route.match(req.originalUrl);
-            if (!matched) continue;
-
-            matched_route = { ...route, params: matched.params };
+            if (!route.method !== req.method) continue;
           }
 
-          if (!matched_route) return res.end("not-found");
+          const route = findRoute(
+            app.router,
+            req.method || "GET",
+            req.originalUrl,
+          );
+          if (!route) return res.end("not-found");
 
           try {
-            const file = await server.ssrLoadModule(matched_route.file);
+            const file = await server.ssrLoadModule(route.data.file);
 
-            if (matched_route.is_server) {
+            if (route.data.is_server) {
               const response = (file[req.method] || file.default)?.({
                 method: req.method,
                 pathname: req.originalUrl,
                 headers: req.headers,
                 setHeader: res.setHeader,
                 setHeaders: res.setHeaders,
-                params: matched_route.params,
+                params: route.params,
               });
 
               if (["object", "number", "bigint"].includes(typeof response)) {
@@ -83,7 +72,9 @@ export async function belt() {
               return res.end(response);
             }
 
-            const rendered = render(file.default);
+            const rendered = render(file.default, {
+              context: new Map([["$route_file", route.data.file]]),
+            });
             let html = HTML_TEMPLATE.replace(HTML_HEAD_ID, rendered.head);
             html = html.replace(HTML_BODY_ID, rendered.body);
 
@@ -98,7 +89,8 @@ export async function belt() {
   return [svelte({ configFile: false }), belt_plugin];
 }
 
-export async function resolveRoutes(app: AppConfig) {
+/** @param {AppConfig} app */
+export async function resolveRoutes(app) {
   const globs = await glob("**/*.{svelte,ts}", {
     cwd: resolve(app.cwd, "./routes"),
   });
@@ -110,56 +102,39 @@ export async function resolveRoutes(app: AppConfig) {
   }
 }
 
-export type Route = {
-  path: string;
-  file: string;
-  method: string;
-  is_server?: boolean;
-  match: MatchFunction<Partial<Record<string, string | string[]>>>;
-  params?: {};
-};
-
-export async function resolveRoute(file: string, cwd: string) {
+/**
+ * @param {string} file
+ * @param {string} cwd
+ * */
+export async function resolveRoute(file, cwd) {
   const file_path = resolve(cwd, "routes", file);
-  let path = file.replaceAll(/\[\.\.\.([\w]+)\]/g, "*$1");
+  let path = file.replaceAll(/\[\.\.\.([\w]+)\]/g, "**:$1");
   path = path.replaceAll(/\[([\w]+)\]/g, ":$1");
   path = path.replaceAll(/(\/)?(index)?\.(svelte|ts|js)$/g, "");
 
   if (!path.startsWith("/")) path = `/${path}`;
 
   if (file.endsWith(".svelte")) {
-    return [{ path, file: file_path, method: "GET", match: match(path) }];
+    return [{ path, file: file_path, method: "GET" }];
   }
 
-  const source: Record<string, () => any> = await import(file_path);
+  /** @type {Record<string, () => any>} */
+  const source = await import(file_path);
 
-  const result: Route[] = [];
+  /** @type {{path: string, file: string, method: string, is_server?: boolean, math: }[]} */
+  const result = [];
 
   for (const key of Object.keys(source)) {
     if (key === "default") continue;
 
-    match(path);
-
-    result.push({
-      path,
-      file: file_path,
-      method: key,
-      is_server: true,
-      match: match(path),
-    });
+    result.push({ path, file: file_path, method: key, is_server: true });
   }
 
   if (!source.default) return result;
   const source_keys = Object.keys(source);
 
   for (const key of HTTP_METHODS.filter((x) => !source_keys.includes(x))) {
-    result.push({
-      path,
-      file: file_path,
-      method: key,
-      is_server: true,
-      match: match(path),
-    });
+    result.push({ path, file: file_path, method: key, is_server: true });
   }
 
   return result;
