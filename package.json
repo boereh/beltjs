@@ -1,5 +1,5 @@
 {
-  "name": "vite-plugin-belt",
+  "name": "@beltjs/belt",
   "type": "module",
   "version": "0.0.1",
   "description": "The Svelte Meta-Framework",
@@ -29,21 +29,21 @@
     "c12": "^3.2.0",
     "citty": "^0.1.6",
     "defu": "^6.1.4",
+    "find-my-way": "^9.3.0",
     "glob": "^11.0.3",
     "nitro": "^0.0.0",
     "obuild": "^0.2.1",
     "path-to-regexp": "^8.3.0",
     "rollup-plugin-svelte": "^7.2.3",
     "rou3": "^0.7.3",
-    "tsdown": "^0.15.0",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@beltjs/belt": "link:.",
     "@sveltejs/vite-plugin-svelte": "^6.2.0",
     "svelte": "^5.38.8",
     "vinxi": "^0.5.8",
-    "vite": "^7.1.5",
-    "vite-plugin-belt": "link:."
+    "vite": "^7.1.5"
   }
 }

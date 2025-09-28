@@ -10,10 +10,29 @@ import {
 } from "./constants.ts";
 import type { Connect, Plugin } from "vite";
 import { match, type MatchFunction } from "path-to-regexp";
+import { type IncomingHttpHeaders } from "node:http";
+import FindMyWay, {
+  type Instance,
+  type HTTPVersion,
+  type HTTPMethod,
+} from "find-my-way";
+
+export type HandlerEvent = {
+  method: HTTPMethod;
+  pathname: string;
+  headers: IncomingHttpHeaders;
+  params: Record<string, string | string[]>;
+  setHeader: (name: string, value: number | string | readonly string[]) => void;
+  setHeaders: (
+    headers: Headers | Map<string, number | string | readonly string[]>,
+  ) => void;
+};
+
+export type Handler = (event: HandlerEvent) => any;
 
 export type AppConfig = {
   cwd: string;
-  router: Set<Route>;
+  router: Instance<HTTPVersion.V1>;
 };
 
 export type Config = {
@@ -26,7 +45,7 @@ export const defineConfig = (cfg: Config) => cfg;
 export async function belt() {
   const app: AppConfig = {
     cwd: "",
-    router: new Set(),
+    router: FindMyWay(),
   };
 
   const belt_plugin: Plugin = {
@@ -41,7 +60,7 @@ export async function belt() {
     configureServer(server) {
       server.watcher.on("add", async (file) => {
         for (const route of await resolveRoute(file, app.cwd)) {
-          app.router.add(route);
+          app.router.get(route.path, () => route);
         }
       });
       server.watcher.on("unlink", (file) => {});
@@ -51,22 +70,18 @@ export async function belt() {
           if (!req.originalUrl) return next();
           if (!req.method) return next();
 
-          let matched_route: Route | undefined = undefined;
-
-          for (const route of app.router.values()) {
-            if (route.method !== req.method) continue;
-            const matched = route.match(req.originalUrl);
-            if (!matched) continue;
-
-            matched_route = { ...route, params: matched.params };
-          }
+          const matched_route = app.router.find(
+            req.method as HTTPMethod,
+            req.originalUrl,
+          );
 
           if (!matched_route) return res.end("not-found");
+          const route_data: Route = matched_route.handler(req, res, {}, {}, {});
 
           try {
-            const file = await server.ssrLoadModule(matched_route.file);
+            const file = await server.ssrLoadModule(route_data.file);
 
-            if (matched_route.is_server) {
+            if (route_data.is_server) {
               const response = (file[req.method] || file.default)?.({
                 method: req.method,
                 pathname: req.originalUrl,
@@ -105,7 +120,7 @@ export async function resolveRoutes(app: AppConfig) {
 
   for (const file of globs) {
     for (const route of await resolveRoute(file, app.cwd)) {
-      app.router.add(route);
+      app.router.get(route.path, () => route);
     }
   }
 }
